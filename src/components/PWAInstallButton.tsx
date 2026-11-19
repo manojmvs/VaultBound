@@ -5,7 +5,11 @@ import { useOnlineStatus, usePWAInstall } from '../hooks/usePWAInstall';
 
 function getMobileShareUrl(): string {
   if (typeof window === 'undefined') return '';
-  return window.location.origin;
+  try {
+    return new URL('./', window.location.href).href;
+  } catch {
+    return window.location.origin;
+  }
 }
 
 function getAndroidChromeIntentUrl(url: string): string {
@@ -187,7 +191,7 @@ export const PWAInstallButton: React.FC = () => {
                         </p>
                       </div>
                       <a
-                        href="/vaultbound.apk?v=3"
+                        href="./vaultbound.apk?v=3"
                         download="Vaultbound.apk"
                         className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-display font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
                       >

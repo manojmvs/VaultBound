@@ -87,7 +87,7 @@ define(['./workbox-e82df9a2'], (function (workbox) { 'use strict';
     "revision": "5551db668a67523e3718ada59474a990"
   }, {
     "url": "index.html",
-    "revision": "2d7958327629d29c3aa4ab5f00afa7fc"
+    "revision": "092bfa9bd76c16a22858e9a58752d527"
   }, {
     "url": "icon-v2.svg",
     "revision": "1350c3ec0dccc1f0e3fb9bd232525fd1"
@@ -101,7 +101,7 @@ define(['./workbox-e82df9a2'], (function (workbox) { 'use strict';
     "url": "assets/intro_human_vs_robot_1794665477652-DmLaxGvt.jpg",
     "revision": null
   }, {
-    "url": "assets/index-DyMCvPWD.js",
+    "url": "assets/index-C2BL12Yz.js",
     "revision": null
   }, {
     "url": "assets/index-B5pUUsWK.css",
@@ -123,7 +123,7 @@ define(['./workbox-e82df9a2'], (function (workbox) { 'use strict';
     "revision": "68a384644164214f1e779ffb709a15e2"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "d9135c8d9f1a64cc2fd62c94617657c4"
+    "revision": "c1c25611ce705779e34dbcb728c0e90d"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(({
