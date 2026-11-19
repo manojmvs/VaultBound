@@ -1,0 +1,6 @@
+{
+  "name": "Vaultbound",
+  "description": "A vibrant, stylized first-person 3D puzzle-shooter where you outsmart patrolling sentinels, solve switch and bounty door locks, and claim the sacred treasure across escalating vault levels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
