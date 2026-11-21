@@ -31,24 +31,71 @@ function apkMimePlugin(): Plugin {
   };
 }
 
+function versionStampPlugin(buildId: string): Plugin {
+  const payload = JSON.stringify({
+    buildId,
+    builtAt: new Date().toISOString(),
+  });
+
+  const serveVersion = (
+    req: { url?: string },
+    res: { setHeader: (name: string, value: string) => void; end: (body: string) => void },
+    next: () => void,
+  ) => {
+    const pathname = (req.url || '').split('?')[0];
+    if (pathname.endsWith('/version.json') || pathname === '/version.json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.end(payload);
+      return;
+    }
+    next();
+  };
+
+  return {
+    name: 'vaultbound-version-stamp',
+    configureServer(server) {
+      server.middlewares.use(serveVersion);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(serveVersion);
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: payload,
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
+  const appBuildId =
+    process.env.GITHUB_SHA?.slice(0, 12) ||
+    process.env.VITE_BUILD_ID ||
+    String(Date.now());
 
   return {
     base: './',
+    define: {
+      __APP_BUILD_ID__: JSON.stringify(appBuildId),
+    },
     plugins: [
       apkMimePlugin(),
+      versionStampPlugin(appBuildId),
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
         useCredentials: true,
         includeAssets: [
-          'icon-v2.svg',
-          'apple-touch-icon-v2.png',
-          'pwa-icon-v2-192.png',
-          'pwa-icon-v2-512.png',
-          'pwa-icon-v2-maskable-512.png',
+          'favicon-v3.png',
+          'apple-touch-icon-v3.png',
+          'pwa-icon-v3-192.png',
+          'pwa-icon-v3-512.png',
+          'pwa-icon-v3-maskable-512.png',
         ],
         manifest: {
           id: './',
@@ -64,19 +111,19 @@ export default defineConfig(({ command }) => {
           scope: './',
           icons: [
             {
-              src: './pwa-icon-v2-192.png',
+              src: './pwa-icon-v3-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: './pwa-icon-v2-512.png',
+              src: './pwa-icon-v3-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: './pwa-icon-v2-maskable-512.png',
+              src: './pwa-icon-v3-maskable-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -90,8 +137,12 @@ export default defineConfig(({ command }) => {
           navigateFallback: null,
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: isBuild ? ['**/*.{js,css,html,ico,png,jpg,svg,woff,woff2}'] : [],
-          globIgnores: ['**/vaultbound.apk', '**/assets/aistudio/**'],
+          globIgnores: ['**/vaultbound.apk', '**/assets/aistudio/**', '**/version.json'],
           runtimeCaching: [
+            {
+              urlPattern: ({ url }: { url: URL }) => url.pathname.endsWith('/version.json'),
+              handler: 'NetworkOnly' as const,
+            },
             ...(isBuild
               ? [
                   {
@@ -100,7 +151,7 @@ export default defineConfig(({ command }) => {
                     handler: 'NetworkFirst' as const,
                     options: {
                       cacheName: 'pages-cache',
-                      networkTimeoutSeconds: 4,
+                      networkTimeoutSeconds: 3,
                       cacheableResponse: {
                         statuses: [200],
                       },

@@ -5,7 +5,8 @@ import { GameOverlayModal } from './components/GameOverlayModal';
 import { IntroScreen } from './components/IntroScreen';
 import { LevelBriefingModal } from './components/LevelBriefingModal';
 import { LevelSelectScreen } from './components/LevelSelectScreen';
-import { OfflineIndicator } from './components/PWAInstallButton';
+import { AppUpdateBanner, OfflineIndicator } from './components/PWAInstallButton';
+import { useAutoUpdate } from './hooks/useAutoUpdate';
 import { soundFX } from './game/audio';
 import { VaultGameEngine } from './game/engine';
 import { LEVELS } from './game/levels';
@@ -81,6 +82,9 @@ export default function App() {
 
   const [phase, setPhase] = useState<GamePhase>('intro');
   const phaseRef = useRef<GamePhase>('intro');
+  const { updateAvailable, isApplyingUpdate, applyUpdateNow } = useAutoUpdate(
+    phase === 'playing',
+  );
   const [currentLevelId, setCurrentLevelId] = useState<number>(1);
   const [progress, setProgress] = useState<Record<number, LevelProgressRecord>>(
     loadInitialProgress,
@@ -525,6 +529,11 @@ export default function App() {
         onReturnTitle={handleReturnLevelSelect}
       />
 
+      <AppUpdateBanner
+        updateAvailable={updateAvailable}
+        isApplyingUpdate={isApplyingUpdate}
+        onApplyNow={applyUpdateNow}
+      />
       <OfflineIndicator />
     </main>
   );
