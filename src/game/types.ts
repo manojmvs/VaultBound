@@ -12,7 +12,7 @@ export type SwitchColor = 'amber' | 'cyan' | 'violet';
 
 export type WeaponKind = 'default' | 'heavy';
 
-export type BotStyle = 'sentinel' | 'enforcer' | 'dreadnought';
+export type BotStyle = 'sentinel' | 'striker' | 'enforcer' | 'dreadnought';
 
 export interface LevelTheme {
   id: number;
@@ -43,8 +43,14 @@ export interface LevelDefinition {
   difficultyLabel: string;
   totalCoins: number;
   botCount: number;
+  botMix: Partial<Record<BotStyle, number>>;
   packCount: number;
   gunPickupCount: number;
+  trophyZoneLabel: string;
+  layoutName: string;
+  tutorialMode?: 'coins' | 'combat_ammo';
+  startingGunBullets?: number;
+  startingBulletPacks?: number;
 }
 
 export interface DoorState {
@@ -81,7 +87,7 @@ export interface MinimapData {
     color?: SwitchColor;
   }>;
   switches: Array<{ x: number; z: number; activated: boolean; color: SwitchColor }>;
-  enemies: Array<{ x: number; z: number; alive: boolean }>;
+  enemies: Array<{ x: number; z: number; alive: boolean; style: BotStyle }>;
   coins: Array<{ x: number; z: number; collected: boolean }>;
   packs: Array<{ x: number; z: number; collected: boolean }>;
   medkits: Array<{ x: number; z: number; collected: boolean }>;
@@ -126,6 +132,8 @@ export interface HudSnapshot {
   hitMarker: number;
   bannerMessage: string | null;
   bannerTone: 'info' | 'unlock' | 'warning' | 'treasure';
+  tutorialHint: string | null;
+  tutorialAccent: 'coin' | 'ammo' | 'combat' | null;
   trophyDistance: number;
   trophyBearingDeg: number;
   minimap: MinimapData;

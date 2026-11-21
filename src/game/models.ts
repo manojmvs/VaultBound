@@ -27,49 +27,94 @@ export interface BotRig {
   muzzlePoint: THREE.Object3D;
 }
 
+export const BOT_STYLE_META: Record<
+  BotStyle,
+  { label: string; plural: string; colorHex: string; armored: boolean }
+> = {
+  sentinel: {
+    label: 'Sentinel Bot',
+    plural: 'Sentinel Bots',
+    colorHex: '#38bdf8',
+    armored: false,
+  },
+  striker: {
+    label: 'Striker Drone',
+    plural: 'Striker Drones',
+    colorHex: '#10b981',
+    armored: false,
+  },
+  enforcer: {
+    label: 'Armored Enforcer',
+    plural: 'Armored Enforcers',
+    colorHex: '#f97316',
+    armored: true,
+  },
+  dreadnought: {
+    label: 'Heavy Dreadnought',
+    plural: 'Heavy Dreadnoughts',
+    colorHex: '#c084fc',
+    armored: true,
+  },
+};
+
 export function getBotStyleForLevel(levelId: number): BotStyle {
-  if (levelId >= 25) return 'dreadnought';
-  if (levelId >= 18) return 'enforcer';
+  if (levelId >= 16) return 'dreadnought';
+  if (levelId >= 8) return 'enforcer';
+  if (levelId >= 4) return 'striker';
   return 'sentinel';
 }
 
 export function createBotModel(
-  levelId: number,
+  styleOrLevel: BotStyle | number,
   contactShadowTex: THREE.Texture,
+  levelId = 1,
 ): BotRig {
   const group = new THREE.Group();
-  const style = getBotStyleForLevel(levelId);
+  const style: BotStyle =
+    typeof styleOrLevel === 'number' ? getBotStyleForLevel(styleOrLevel) : styleOrLevel;
+  const effectiveLevel = typeof styleOrLevel === 'number' ? styleOrLevel : levelId;
 
   const hullColor =
     style === 'dreadnought'
       ? 0x1e1b4b
       : style === 'enforcer'
         ? 0x7f1d1d
-        : levelId >= 11
-          ? 0xe11d48
-          : 0x0284c7;
+        : style === 'striker'
+          ? 0x064e3b
+          : effectiveLevel >= 11
+            ? 0xe11d48
+            : 0x0284c7;
   const accentColor =
     style === 'dreadnought'
       ? 0xfacc15
       : style === 'enforcer'
         ? 0xf97316
-        : levelId >= 11
-          ? 0xfb923c
-          : 0x38bdf8;
+        : style === 'striker'
+          ? 0x10b981
+          : effectiveLevel >= 11
+            ? 0xfb923c
+            : 0x38bdf8;
   const trimDarkColor = style === 'dreadnought' ? 0x0f172a : 0x1e293b;
 
   const hullMat = new THREE.MeshStandardMaterial({
     color: hullColor,
-    roughness: style === 'sentinel' ? 0.32 : 0.24,
-    metalness: style === 'sentinel' ? 0.58 : 0.78,
+    roughness: style === 'sentinel' ? 0.34 : style === 'striker' ? 0.28 : 0.24,
+    metalness: style === 'sentinel' ? 0.56 : style === 'striker' ? 0.68 : 0.78,
   });
   const chassisMat = new THREE.MeshStandardMaterial({
     color: trimDarkColor,
-    roughness: 0.52,
-    metalness: 0.55,
+    roughness: 0.54,
+    metalness: 0.52,
   });
   const shutterMat = new THREE.MeshStandardMaterial({
-    color: style === 'dreadnought' ? 0x312e81 : style === 'enforcer' ? 0x451a03 : 0x334155,
+    color:
+      style === 'dreadnought'
+        ? 0x312e81
+        : style === 'enforcer'
+          ? 0x451a03
+          : style === 'striker'
+            ? 0x065f46
+            : 0x334155,
     roughness: 0.28,
     metalness: 0.82,
   });
@@ -79,15 +124,29 @@ export function createBotModel(
     metalness: 0.88,
   });
   const visorMat = new THREE.MeshStandardMaterial({
-    color: style === 'dreadnought' ? 0xf43f5e : style === 'enforcer' ? 0xfb923c : 0x38bdf8,
-    emissive: style === 'dreadnought' ? 0xe11d48 : style === 'enforcer' ? 0xf97316 : 0x0ea5e9,
+    color:
+      style === 'dreadnought'
+        ? 0xf43f5e
+        : style === 'enforcer'
+          ? 0xfb923c
+          : style === 'striker'
+            ? 0x34d399
+            : 0x38bdf8,
+    emissive:
+      style === 'dreadnought'
+        ? 0xe11d48
+        : style === 'enforcer'
+          ? 0xf97316
+          : style === 'striker'
+            ? 0x10b981
+            : 0x0ea5e9,
     emissiveIntensity: style === 'sentinel' ? 1.4 : 1.9,
     roughness: 0.15,
     metalness: 0.2,
   });
 
   // Grounded contact shadow disc
-  const shadowSize = style === 'sentinel' ? 1.4 : 1.75;
+  const shadowSize = style === 'sentinel' ? 1.4 : style === 'striker' ? 1.32 : 1.75;
   const shadowMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(shadowSize, shadowSize),
     new THREE.MeshBasicMaterial({
@@ -105,6 +164,127 @@ export function createBotModel(
   group.add(bodyGroup);
 
   const armorMeshes: THREE.Mesh[] = [];
+
+  if (style === 'striker') {
+    // AGILE STRIKER FLANKER DRONE: Sleek tapered twin-blade hover unit
+    const basePlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.42, 0.22, 8),
+      chassisMat,
+    );
+    basePlate.position.y = 0.24;
+    basePlate.castShadow = true;
+    bodyGroup.add(basePlate);
+
+    const hoverRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.46, 0.04, 8, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0x34d399,
+        emissive: 0x10b981,
+        emissiveIntensity: 1.5,
+        roughness: 0.2,
+        metalness: 0.65,
+      }),
+    );
+    hoverRing.rotation.x = Math.PI / 2;
+    hoverRing.position.y = 0.34;
+    bodyGroup.add(hoverRing);
+
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.42, 6), chassisMat);
+    spine.position.y = 0.56;
+    bodyGroup.add(spine);
+
+    // Tapered diamond-angled sleek torso
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.28, 0.78, 6), hullMat);
+    torso.position.set(0, 1.08, -0.02);
+    torso.castShadow = true;
+    bodyGroup.add(torso);
+
+    // Swept Flanker Wing Blades + Side Thruster Pods
+    const leftWing = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.76, 0.48), accentMat);
+    leftWing.position.set(-0.56, 1.18, -0.06);
+    leftWing.rotation.z = -0.34;
+    leftWing.rotation.y = 0.16;
+    leftWing.castShadow = true;
+
+    const rightWing = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.76, 0.48), accentMat);
+    rightWing.position.set(0.56, 1.18, -0.06);
+    rightWing.rotation.z = 0.34;
+    rightWing.rotation.y = -0.16;
+    rightWing.castShadow = true;
+    bodyGroup.add(leftWing, rightWing);
+
+    const cavity = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.44, 0.16), chassisMat);
+    cavity.position.set(0, 1.06, 0.14);
+    bodyGroup.add(cavity);
+
+    const cannonCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.15, 0.32, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0x34d399,
+        emissive: 0x10b981,
+        emissiveIntensity: 2.0,
+        roughness: 0.18,
+        metalness: 0.45,
+      }),
+    );
+    cannonCore.rotation.x = Math.PI / 2;
+    cannonCore.position.set(0, 1.06, 0.17);
+    bodyGroup.add(cannonCore);
+
+    const muzzlePoint = new THREE.Object3D();
+    muzzlePoint.position.set(0, 1.06, 0.38);
+    bodyGroup.add(muzzlePoint);
+
+    const leftShutter = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.48, 0.08), shutterMat);
+    leftShutter.position.set(-0.145, 1.06, 0.27);
+    leftShutter.castShadow = true;
+
+    const rightShutter = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.48, 0.08), shutterMat);
+    rightShutter.position.set(0.145, 1.06, 0.27);
+    rightShutter.castShadow = true;
+    bodyGroup.add(leftShutter, rightShutter);
+
+    // Swept angular sensor head + glowing wrap visor
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.46, 4), hullMat);
+    head.rotation.y = Math.PI / 4;
+    head.position.set(0, 1.66, 0.02);
+    head.castShadow = true;
+    bodyGroup.add(head);
+
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.11, 0.1), visorMat);
+    visor.position.set(0, 1.6, 0.22);
+    bodyGroup.add(visor);
+
+    armorMeshes.push(torso, head, leftWing, rightWing, leftShutter, rightShutter);
+
+    const hpBarBg = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.78, 0.11),
+      new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.DoubleSide }),
+    );
+    hpBarBg.position.set(0, 2.16, 0);
+    group.add(hpBarBg);
+
+    const hpBarFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.72, 0.07),
+      new THREE.MeshBasicMaterial({ color: 0x22c55e, side: THREE.DoubleSide }),
+    );
+    hpBarFill.position.set(0, 2.16, 0.01);
+    group.add(hpBarFill);
+
+    return {
+      group,
+      bodyGroup,
+      leftShutter,
+      rightShutter,
+      cannonCore,
+      visor,
+      hoverRing,
+      hpBarBg,
+      hpBarFill,
+      armorMeshes,
+      muzzlePoint,
+    };
+  }
 
   if (style === 'sentinel') {
     // Classic Sentinel Hover-Tread Pedestal
@@ -222,7 +402,7 @@ export function createBotModel(
     };
   }
 
-  // HEAVY ARMORED ENEMIES FOR LEVELS 18-30 ('enforcer' & 'dreadnought')
+  // HEAVY ARMORED ENEMIES ('enforcer' & 'dreadnought')
   const isDread = style === 'dreadnought';
 
   // Heavy Hexagonal Armored Hover-Skirt Base

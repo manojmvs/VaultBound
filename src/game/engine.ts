@@ -11,7 +11,6 @@ import {
   createTreasureModel,
   createWeaponModel,
   DoorRig,
-  getBotStyleForLevel,
   SWITCH_COLORS,
   SWITCH_HEX,
   SwitchRig,
@@ -196,6 +195,8 @@ export class VaultGameEngine {
   // Player state
   private playerX = 0;
   private playerZ = 0;
+  private spawnGridX = 1;
+  private spawnGridZ = 1;
   private playerYaw = 0;
   private playerPitch = 0;
   private playerKnockbackX = 0;
@@ -209,6 +210,7 @@ export class VaultGameEngine {
   private specialGunBullets = 0;
   private weaponSwitchAnim = 0;
   private bulletPacks = 1;
+  private packsCollectedThisLevel = 0;
   private reloadTimer = 0;
   private reloading = false;
 
@@ -514,12 +516,13 @@ export class VaultGameEngine {
     this.health = 100;
     this.maxHealth = 100;
     this.activeWeapon = 'default';
-    this.gunBullets = MAX_GUN_BULLETS;
+    this.gunBullets = def.startingGunBullets ?? MAX_GUN_BULLETS;
     this.specialGunBullets = 0;
     this.weaponSwitchAnim = 0;
     this.weaponRig.group.visible = true;
     this.heavyWeaponRig.group.visible = false;
-    this.bulletPacks = 1; // Starts with 10 bullets in gun + 1 spare pack in bucket
+    this.bulletPacks = def.startingBulletPacks ?? 1;
+    this.packsCollectedThisLevel = 0;
     this.reloadTimer = 0;
     this.reloading = false;
     this.coinsCollected = 0;
@@ -588,6 +591,8 @@ export class VaultGameEngine {
         } else if (ch === 'S') {
           this.playerX = wx;
           this.playerZ = wz;
+          this.spawnGridX = gx;
+          this.spawnGridZ = gz;
         } else if (ch === 'T') {
           this.treasurePos = { x: wx, z: wz, gridX: gx, gridZ: gz, collected: false };
           this.treasureRig = createTreasureModel(theme.treasureColor, this.contactShadowTex);
@@ -654,23 +659,52 @@ export class VaultGameEngine {
           };
           this.doors.push(doorEntity);
           this.doorGrid[gz * this.gridCols + gx] = doorEntity;
-        } else if (ch === '1') {
-          const style = getBotStyleForLevel(def.id);
-          const rig = createBotModel(def.id, this.contactShadowTex);
+        } else if (ch === '1' || ch === '2' || ch === '3' || ch === '4') {
+          const style: BotStyle =
+            ch === '4'
+              ? 'dreadnought'
+              : ch === '3'
+                ? 'enforcer'
+                : ch === '2'
+                  ? 'striker'
+                  : 'sentinel';
+          const rig = createBotModel(style, this.contactShadowTex, def.id);
           rig.group.position.set(wx, 0, wz);
           this.levelGroup.add(rig.group);
+          const maxHp =
+            style === 'dreadnought' ? 120 : style === 'striker' ? 75 : 100;
           const speed =
-            style === 'dreadnought'
-              ? Math.min(3.7, 3.05 + (def.id - 24) * 0.09)
-              : style === 'enforcer'
-                ? Math.min(3.45, 2.55 + (def.id - 17) * 0.08)
-                : Math.min(3.0, 1.7 + def.id * 0.045);
+            style === 'striker'
+              ? Math.min(3.85, 2.7 + def.id * 0.05)
+              : style === 'dreadnought'
+                ? Math.min(3.55, 2.55 + Math.max(0, def.id - 15) * 0.07)
+                : style === 'enforcer'
+                  ? Math.min(3.3, 2.25 + Math.max(0, def.id - 7) * 0.05)
+                  : Math.min(2.9, 1.7 + def.id * 0.045);
           const burstCount =
-            style === 'dreadnought' ? 7 : style === 'enforcer' ? 6 : BOT_BURST_COUNT;
+            style === 'dreadnought'
+              ? 7
+              : style === 'enforcer'
+                ? 6
+                : style === 'striker'
+                  ? 3
+                  : BOT_BURST_COUNT;
           const burstInterval =
-            style === 'dreadnought' ? 0.12 : style === 'enforcer' ? 0.135 : BOT_BURST_INTERVAL;
+            style === 'dreadnought'
+              ? 0.12
+              : style === 'enforcer'
+                ? 0.135
+                : style === 'striker'
+                  ? 0.11
+                  : BOT_BURST_INTERVAL;
           const regenSeconds =
-            style === 'dreadnought' ? 1.5 : style === 'enforcer' ? 1.7 : BOT_REGEN_SECONDS;
+            style === 'striker'
+              ? 1.25
+              : style === 'dreadnought'
+                ? 1.5
+                : style === 'enforcer'
+                  ? 1.7
+                  : BOT_REGEN_SECONDS;
 
           this.bots.push({
             id: `bot_${gx}_${gz}`,
@@ -678,15 +712,15 @@ export class VaultGameEngine {
             x: wx,
             z: wz,
             yaw: Math.random() * Math.PI * 2,
-            hp: 100,
-            maxHp: 100,
+            hp: maxHp,
+            maxHp,
             speed,
             alive: true,
             alerted: false,
             doorPhase: 'cooldown',
             doorOpen: 0,
             regenSeconds,
-            regenTimer: style === 'sentinel' ? 0.4 : 0.25,
+            regenTimer: style === 'sentinel' ? 0.45 : style === 'striker' ? 0.2 : 0.3,
             burstCount,
             burstInterval,
             bulletsLeftInBurst: burstCount,
@@ -697,7 +731,7 @@ export class VaultGameEngine {
             patrolAngle: Math.random() * Math.PI * 2,
             patrolTimer: 0.2 + Math.random() * 0.8,
             strafeSign: Math.random() < 0.5 ? -1 : 1,
-            aiDecisionTimer: 0.4 + Math.random() * 0.8,
+            aiDecisionTimer: style === 'striker' ? 0.35 + Math.random() * 0.45 : 0.4 + Math.random() * 0.8,
             repathTimer: Math.random() * 0.3,
             stuckTimer: 0,
             lastCheckX: wx,
@@ -765,21 +799,24 @@ export class VaultGameEngine {
       this.levelGroup.add(lampInst);
     }
 
-    // Randomly spawn Bullet Packs and Health Kits on walkable floor tiles
-    const initialPacks = Math.max(3, def.packCount);
-    const frontPacks = Math.max(2, Math.ceil(initialPacks * 0.55));
-    for (let i = 0; i < frontPacks; i++) {
-      this.spawnRandomFloorPickup('pack', true, 1.8);
-    }
-    for (let i = frontPacks; i < initialPacks; i++) {
-      this.spawnRandomFloorPickup('pack', false, 2.2);
-    }
-    const initialMedkits = Math.min(3, 1 + Math.floor(def.id / 7));
-    for (let i = 0; i < initialMedkits; i++) {
-      this.spawnRandomFloorPickup('medkit', i === 0, 2.2);
-    }
-    for (let i = 0; i < def.gunPickupCount; i++) {
-      this.spawnRandomFloorPickup('gun', i < 2, i === 0 ? 1.6 : 2.3);
+    // Randomly spawn Bullet Packs, Health Kits, and Heavy Railguns (skipped on Level 1 Coin Tutorial)
+    if (def.tutorialMode !== 'coins') {
+      const existingPacks = this.pickups.filter((p) => p.kind === 'pack').length;
+      const packsToSpawn = Math.max(0, Math.max(3, def.packCount) - existingPacks);
+      const frontPacks = Math.ceil(packsToSpawn * 0.55);
+      for (let i = 0; i < frontPacks; i++) {
+        this.spawnRandomFloorPickup('pack', true, 1.8);
+      }
+      for (let i = frontPacks; i < packsToSpawn; i++) {
+        this.spawnRandomFloorPickup('pack', false, 2.2);
+      }
+      const initialMedkits = Math.min(3, 1 + Math.floor(def.id / 7));
+      for (let i = 0; i < initialMedkits; i++) {
+        this.spawnRandomFloorPickup('medkit', i === 0, 2.2);
+      }
+      for (let i = 0; i < def.gunPickupCount; i++) {
+        this.spawnRandomFloorPickup('gun', i < 2, i === 0 ? 1.6 : 2.3);
+      }
     }
 
     this.showBanner(
@@ -1439,8 +1476,9 @@ export class VaultGameEngine {
   }
 
   private damageBot(bot: BotEntity, amount: number, weaponKind: WeaponKind = 'default') {
-    // Lv 18-30 armored enemies take reduced damage from the default gun,
-    // while the picked-up Heavy Railgun pierces armor for increased bullet damage.
+    // Armored Enforcers & Dreadnoughts resist default pulse bolts,
+    // while the picked-up Heavy Railgun pierces armor for full high-impact damage.
+    const isArmored = bot.style === 'enforcer' || bot.style === 'dreadnought';
     const actualDamage =
       weaponKind === 'heavy'
         ? Math.max(amount, 25)
@@ -1454,7 +1492,7 @@ export class VaultGameEngine {
     bot.alerted = true;
     bot.hitFlash = 0.15;
     soundFX.playEnemyHit();
-    if (weaponKind === 'default' && bot.style !== 'sentinel') {
+    if (weaponKind === 'default' && isArmored) {
       soundFX.playArmorDeflect();
     }
 
@@ -1462,19 +1500,27 @@ export class VaultGameEngine {
       bot.alive = false;
       bot.rig.group.visible = false;
       this.kills++;
-      this.score += bot.style === 'sentinel' ? 150 : 250;
+      this.score +=
+        bot.style === 'dreadnought'
+          ? 300
+          : bot.style === 'enforcer'
+            ? 240
+            : bot.style === 'striker'
+              ? 180
+              : 150;
       soundFX.playEnemyDefeat();
       this.spawnParticles(bot.x, 1.1, bot.z, 0xfbbf24, 18);
       this.checkBountyDoors();
       this.checkTrophyDoors();
-      if (this.kills >= this.bots.length) {
+      if (this.bots.length > 0 && this.kills >= this.bots.length) {
         this.slowMoTimer = SLOW_MO_DURATION;
         this.hudSyncTimer = 0;
         this.emitHud();
       }
     } else {
       const ratio = bot.hp / bot.maxHp;
-      const halfBarWidth = bot.style === 'sentinel' ? 0.39 : 0.45;
+      const halfBarWidth =
+        bot.style === 'striker' ? 0.36 : bot.style === 'sentinel' ? 0.39 : 0.45;
       bot.rig.hpBarFill.scale.x = Math.max(0.01, ratio);
       bot.rig.hpBarFill.position.x = -(1 - ratio) * halfBarWidth;
       const barMat = bot.rig.hpBarFill.material as THREE.MeshBasicMaterial;
@@ -1522,7 +1568,7 @@ export class VaultGameEngine {
       const nx = gx + d.dx;
       const nz = gz + d.dz;
       if (this.isCellBlocked(nx, nz)) continue;
-      if (avoidSouthStart && nz >= this.gridRows - 3) continue;
+      if (avoidSouthStart && Math.hypot(nx - this.spawnGridX, nz - this.spawnGridZ) < 2.6) continue;
       const diff = Math.abs(Math.atan2(Math.sin(d.angle - prevAngle), Math.cos(d.angle - prevAngle)));
       valid.push({ nx, nz, angle: d.angle, isReverse: diff > 2.4 });
     }
@@ -1696,11 +1742,18 @@ export class VaultGameEngine {
         else if (dist > 10.5) forwardFactor = 0.82;
         else if (bot.doorPhase !== 'cooldown') forwardFactor = 0.0;
 
-        const strafeWeight = bot.doorPhase === 'cooldown' ? 0.92 : 0.62;
+        const strafeWeight =
+          bot.style === 'striker'
+            ? bot.doorPhase === 'cooldown'
+              ? 1.15
+              : 0.8
+            : bot.doorPhase === 'cooldown'
+              ? 0.92
+              : 0.62;
         const rawX = dirX * forwardFactor + perpX * strafeWeight;
         const rawZ = dirZ * forwardFactor + perpZ * strafeWeight;
         const rawLen = Math.hypot(rawX, rawZ) || 1;
-        const speedScale = bot.doorPhase === 'cooldown' ? 1.0 : 0.56;
+        const speedScale = bot.doorPhase === 'cooldown' ? 1.0 : bot.style === 'striker' ? 0.72 : 0.56;
         moveVx = (rawX / rawLen) * bot.speed * speedScale;
         moveVz = (rawZ / rawLen) * bot.speed * speedScale;
       } else if (bot.alerted && !canSee) {
@@ -1859,7 +1912,9 @@ export class VaultGameEngine {
               ? 11
               : bot.style === 'enforcer'
                 ? 9
-                : 5 + Math.min(4, Math.floor(this.level.id / 7));
+                : bot.style === 'striker'
+                  ? 5 + Math.min(3, Math.floor(this.level.id / 10))
+                  : 5 + Math.min(4, Math.floor(this.level.id / 7));
           this.spawnBolt(_vec3A, _vec3B, false, dmg);
           soundFX.playEnemyFire();
 
@@ -2030,6 +2085,7 @@ export class VaultGameEngine {
             this.levelGroup.remove(pk.mesh);
             this.pickups.splice(i, 1);
             this.gunBullets = MAX_GUN_BULLETS;
+            this.packsCollectedThisLevel++;
             soundFX.playReload();
             this.spawnParticles(pk.x, 0.72, pk.z, 0x38bdf8, 8);
             this.callbacks.onCoinCollected?.({
@@ -2052,6 +2108,7 @@ export class VaultGameEngine {
             this.levelGroup.remove(pk.mesh);
             this.pickups.splice(i, 1);
             this.bulletPacks++;
+            this.packsCollectedThisLevel++;
             soundFX.playPickup();
             this.spawnParticles(pk.x, 0.72, pk.z, 0x38bdf8, 8);
             this.callbacks.onCoinCollected?.({
@@ -2413,6 +2470,42 @@ export class VaultGameEngine {
         ? this.computeTrophyNavigation()
         : { trophyDistance: 0, trophyBearingDeg: 0, trophyPath: undefined };
 
+    let tutorialHint: string | null = null;
+    let tutorialAccent: 'coin' | 'ammo' | 'combat' | null = null;
+    if (!trophyDoorUnlocked && !this.finished) {
+      if (this.level.tutorialMode === 'coins') {
+        const remCoins = Math.max(0, this.totalCoins - this.coinsCollected);
+        const switchOpen = switchesTotal.length === 0 || switchesActivated.length >= switchesTotal.length;
+        if (!switchOpen && this.coinsCollected === 0) {
+          tutorialHint = 'Coin Tutorial: Move & walk over Gold Coins to collect them!';
+          tutorialAccent = 'coin';
+        } else if (!switchOpen) {
+          tutorialHint = 'Nice! Shoot the glowing Amber Switch to unlock the next room for more coins.';
+          tutorialAccent = 'coin';
+        } else {
+          tutorialHint = `Gate Open! Collect the remaining ${remCoins} Gold Coin${remCoins === 1 ? '' : 's'} to unlock the Trophy Door.`;
+          tutorialAccent = 'coin';
+        }
+      } else if (this.level.tutorialMode === 'combat_ammo') {
+        const remCoins = Math.max(0, this.totalCoins - this.coinsCollected);
+        if (this.kills < this.bots.length) {
+          if (this.gunBullets <= 2 && this.bulletPacks === 0) {
+            tutorialHint = 'Out of Ammo! Walk over a glowing Blue Bullet Pack to reload +10 bullets!';
+            tutorialAccent = 'ammo';
+          } else if (this.packsCollectedThisLevel === 0) {
+            tutorialHint = 'Enemy Ahead! Collect glowing Blue Bullet Packs first — each pack reloads +10 bullets.';
+            tutorialAccent = 'ammo';
+          } else {
+            tutorialHint = 'Ammo Loaded! Shoot the Amber Switch, aim at the Sentinel Bot & hold Shoot to defeat it.';
+            tutorialAccent = 'combat';
+          }
+        } else {
+          tutorialHint = `Sentinel Defeated! Collect the remaining ${remCoins} Gold Coin${remCoins === 1 ? '' : 's'} to unlock the Trophy.`;
+          tutorialAccent = 'coin';
+        }
+      }
+    }
+
     this.callbacks.onHudUpdate({
       levelId: this.level.id,
       totalLevels: LEVELS.length,
@@ -2453,6 +2546,8 @@ export class VaultGameEngine {
       slowMoActive: this.slowMoTimer > 0 && !this.dying,
       bannerMessage: this.bannerTimer > 0 ? this.bannerMessage : null,
       bannerTone: this.bannerTone,
+      tutorialHint,
+      tutorialAccent,
       trophyDistance: trophyNav.trophyDistance,
       trophyBearingDeg: trophyNav.trophyBearingDeg,
       minimap: {
@@ -2479,6 +2574,7 @@ export class VaultGameEngine {
           x: b.x / TILE_SIZE,
           z: b.z / TILE_SIZE,
           alive: b.alive,
+          style: b.style,
         })),
         coins: this.pickups
           .filter((p) => p.kind === 'coin')
@@ -2706,26 +2802,28 @@ export class VaultGameEngine {
         this.syncCamera(dt);
 
         // Periodically spawn random Bullet Packs, Medkits & Heavy Guns on reachable floor tiles
-        this.floorSpawnTimer += simDt;
-        if (this.floorSpawnTimer >= 8.5) {
-          this.floorSpawnTimer = 0;
-          let activePacks = 0;
-          let activeMedkits = 0;
-          let activeGuns = 0;
-          for (const p of this.pickups) {
-            if (p.collected) continue;
-            if (p.kind === 'pack') activePacks++;
-            else if (p.kind === 'medkit') activeMedkits++;
-            else if (p.kind === 'gun') activeGuns++;
-          }
-          if (activePacks < 3) {
-            this.spawnRandomFloorPickup('pack', true, 2.8);
-          }
-          if (activeMedkits < 2 && this.health < this.maxHealth) {
-            this.spawnRandomFloorPickup('medkit', true, 2.8);
-          }
-          if (this.level.id >= 18 && activeGuns < 2 && this.kills < this.bots.length) {
-            this.spawnRandomFloorPickup('gun', true, 2.8);
+        if (this.level.tutorialMode !== 'coins') {
+          this.floorSpawnTimer += simDt;
+          if (this.floorSpawnTimer >= 8.5) {
+            this.floorSpawnTimer = 0;
+            let activePacks = 0;
+            let activeMedkits = 0;
+            let activeGuns = 0;
+            for (const p of this.pickups) {
+              if (p.collected) continue;
+              if (p.kind === 'pack') activePacks++;
+              else if (p.kind === 'medkit') activeMedkits++;
+              else if (p.kind === 'gun') activeGuns++;
+            }
+            if (activePacks < 3) {
+              this.spawnRandomFloorPickup('pack', true, 2.8);
+            }
+            if (activeMedkits < 2 && this.health < this.maxHealth) {
+              this.spawnRandomFloorPickup('medkit', true, 2.8);
+            }
+            if (this.level.gunPickupCount > 0 && activeGuns < 2 && this.kills < this.bots.length) {
+              this.spawnRandomFloorPickup('gun', true, 2.8);
+            }
           }
         }
 

@@ -3,8 +3,10 @@ import {
   ArrowLeft,
   Bot,
   Coins,
+  Compass,
   Crosshair,
   LockKeyhole,
+  Package,
   Play,
   ShieldAlert,
   Timer,
@@ -13,8 +15,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { LEVELS } from '../game/levels';
-import { getBotStyleForLevel, SWITCH_HEX } from '../game/models';
-import { SwitchColor } from '../game/types';
+import { BOT_STYLE_META, SWITCH_HEX } from '../game/models';
+import { BotStyle, SwitchColor } from '../game/types';
 
 interface LevelBriefingModalProps {
   levelId: number;
@@ -28,6 +30,8 @@ const SWITCH_LABEL: Record<SwitchColor, string> = {
   violet: 'Violet',
 };
 
+const BOT_STYLE_ORDER: BotStyle[] = ['sentinel', 'striker', 'enforcer', 'dreadnought'];
+
 export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
   levelId,
   onStart,
@@ -40,14 +44,29 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
   if (gridJoined.includes('b')) switches.push('cyan');
   if (gridJoined.includes('v')) switches.push('violet');
 
-  const botStyle = getBotStyleForLevel(levelDef.id);
-  const botClassName =
-    botStyle === 'dreadnought'
-      ? 'Heavy Dreadnoughts'
-      : botStyle === 'enforcer'
-        ? 'Armored Enforcers'
-        : 'Sentinel Bots';
-  const isArmoredTier = levelDef.id >= 18;
+  const botEntries = BOT_STYLE_ORDER.filter((s) => (levelDef.botMix[s] ?? 0) > 0).map((s) => ({
+    style: s,
+    count: levelDef.botMix[s] ?? 0,
+    meta: BOT_STYLE_META[s],
+  }));
+
+  const isCoinTutorial = levelDef.tutorialMode === 'coins';
+  const isAmmoTutorial = levelDef.tutorialMode === 'combat_ammo';
+  const hasArmoredEnemies = botEntries.some((e) => e.meta.armored);
+  const isMixedSquad = botEntries.length > 1;
+
+  const taskCount =
+    (switches.length > 0 ? 1 : 0) +
+    1 + // Gold Coins
+    (isAmmoTutorial ? 1 : 0) + // Collect Bullet Packs
+    (levelDef.botCount > 0 ? 1 : 0) + // Defeat Bots
+    1; // Claim Relic
+
+  const enemyForceSummary = isCoinTutorial
+    ? 'None (Training)'
+    : isMixedSquad
+      ? `Mixed (${botEntries.length} Classes)`
+      : botEntries[0]?.meta.plural || 'Sentinel Bots';
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/90 backdrop-blur-md safe-modal-inset overflow-hidden">
@@ -73,6 +92,10 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
                 <span className="px-1.5 py-0.5 rounded-md border border-slate-700 bg-slate-800/90 text-[10px] text-slate-200">
                   {levelDef.difficultyLabel}
                 </span>
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-slate-700/80 bg-slate-950/70 text-[10px] text-sky-300">
+                  <Compass className="w-2.5 h-2.5" />
+                  {levelDef.layoutName}
+                </span>
               </div>
               <h2 className="font-display text-base sm:text-xl font-bold text-white truncate mt-0.5">
                 {levelDef.theme.name}
@@ -94,9 +117,14 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
             {/* Objective Card */}
             <div className="min-[540px]:col-span-5 rounded-xl border border-amber-400/30 bg-slate-950/80 p-2.5 sm:p-3 flex flex-col justify-between gap-2">
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300">
-                  <Trophy className="w-3.5 h-3.5 shrink-0" />
-                  <span>Level Objective</span>
+                <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Trophy className="w-3.5 h-3.5 shrink-0" />
+                    Level Objective
+                  </span>
+                  <span className="text-[10px] font-semibold normal-case text-emerald-300">
+                    {levelDef.trophyZoneLabel}
+                  </span>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-slate-900/90 px-2.5 py-2">
                   <div className="text-[10px] text-slate-400">Target Vault Relic</div>
@@ -108,8 +136,7 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
                   </div>
                 </div>
                 <p className="text-[11px] sm:text-xs text-slate-300 leading-snug">
-                  Unseal the inner sanctum doors, clear every guard and gold coin, and retrieve the{' '}
-                  <span className="text-white font-semibold">{levelDef.theme.jewelleryName}</span>.
+                  {levelDef.theme.description}
                 </p>
               </div>
 
@@ -117,7 +144,13 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
               <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800/80 text-[10px] sm:text-[11px]">
                 <div className="rounded-lg bg-slate-900/90 border border-slate-800 px-2 py-1.5">
                   <div className="text-slate-400">Enemy Force</div>
-                  <div className="font-semibold text-rose-300 truncate">{botClassName}</div>
+                  <div
+                    className={`font-semibold truncate ${
+                      isCoinTutorial ? 'text-emerald-300' : 'text-rose-300'
+                    }`}
+                  >
+                    {enemyForceSummary}
+                  </div>
                 </div>
                 <div className="rounded-lg bg-slate-900/90 border border-slate-800 px-2 py-1.5">
                   <div className="text-slate-400">
@@ -129,8 +162,10 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
                     }`}
                   >
                     {levelDef.gunPickupCount > 0
-                      ? `${levelDef.gunPickupCount} Railguns (10x AP)`
-                      : 'Pulse Blaster'}
+                      ? `${levelDef.gunPickupCount} Railgun${levelDef.gunPickupCount > 1 ? 's' : ''} (10x AP)`
+                      : isAmmoTutorial
+                        ? '4 Bullets + Packs'
+                        : 'Pulse Blaster'}
                   </div>
                 </div>
               </div>
@@ -143,86 +178,148 @@ export const LevelBriefingModal: React.FC<LevelBriefingModalProps> = ({
                   <Crosshair className="w-3.5 h-3.5 shrink-0" />
                   <span>Tasks to Complete</span>
                 </div>
-                <span className="text-[11px] font-mono-num text-slate-400">4 Tasks</span>
+                <span className="text-[11px] font-mono-num text-slate-400">
+                  {taskCount} Tasks
+                </span>
               </div>
 
               <div className="space-y-1.5 text-[11px] sm:text-xs">
                 {/* Task 1: Energy Switches */}
-                <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2">
-                  <div className="w-5 h-5 rounded-md bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 mt-0.5">
-                    <Zap className="w-3 h-3" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white leading-tight">
-                      Shoot {switches.length === 1 ? 'Vault Switch' : `${switches.length} Vault Switches`}
+                {switches.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2">
+                    <div className="w-5 h-5 rounded-md bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 mt-0.5">
+                      <Zap className="w-3 h-3" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-1 mt-1">
-                      {switches.map((sw) => (
-                        <span
-                          key={sw}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-white/10 bg-slate-950 text-[10px] font-medium text-slate-200"
-                        >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-white leading-tight">
+                        Shoot{' '}
+                        {switches.length === 1
+                          ? 'Vault Switch'
+                          : `${switches.length} Vault Switches`}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {switches.map((sw) => (
                           <span
-                            className="w-2 h-2 rounded-xs"
-                            style={{ backgroundColor: SWITCH_HEX[sw] }}
-                          />
-                          {SWITCH_LABEL[sw]} Gate
-                        </span>
-                      ))}
-                      {levelDef.bountyKillsRequired > 0 && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-rose-500/35 bg-rose-950/40 text-[10px] font-medium text-rose-200">
-                          <LockKeyhole className="w-2.5 h-2.5 text-rose-400" />
-                          {levelDef.bountyKillsRequired}-Bot Bounty Gate
-                        </span>
-                      )}
+                            key={sw}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-white/10 bg-slate-950 text-[10px] font-medium text-slate-200"
+                          >
+                            <span
+                              className="w-2 h-2 rounded-xs"
+                              style={{ backgroundColor: SWITCH_HEX[sw] }}
+                            />
+                            {SWITCH_LABEL[sw]} Gate
+                          </span>
+                        ))}
+                        {levelDef.bountyKillsRequired > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-rose-500/35 bg-rose-950/40 text-[10px] font-medium text-rose-200">
+                            <LockKeyhole className="w-2.5 h-2.5 text-rose-400" />
+                            {levelDef.bountyKillsRequired}-Bot Bounty Gate
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Task 2: Collect Coins */}
-                <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2">
-                  <div className="w-5 h-5 rounded-md bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0">
-                    <Coins className="w-3 h-3" />
+                {/* Level 2 Tutorial Task: Collect Blue Bullet Packs */}
+                {isAmmoTutorial && (
+                  <div className="flex items-start gap-2 rounded-lg border border-sky-400/40 bg-sky-950/30 p-2">
+                    <div className="w-5 h-5 rounded-md bg-sky-500/20 border border-sky-400/50 flex items-center justify-center text-sky-300 shrink-0 mt-0.5">
+                      <Package className="w-3 h-3" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sky-200">
+                          Collect Glowing Blue Bullet Packs
+                        </span>
+                        <span className="font-mono-num font-bold text-sky-300 shrink-0">
+                          +10 / Pack
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-sky-200/80 mt-0.5">
+                        You start with 4 bullets — grab blue floor packs before engaging the enemy!
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
-                    <span className="font-semibold text-white">Collect All Gold Coins</span>
-                    <span className="font-mono-num font-bold text-amber-300 shrink-0">
-                      {levelDef.totalCoins} Coins
-                    </span>
-                  </div>
-                </div>
+                )}
 
-                {/* Task 3: Defeat Bots */}
+                {/* Task: Collect Gold Coins */}
                 <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2">
-                  <div className="w-5 h-5 rounded-md bg-rose-500/15 border border-rose-400/40 flex items-center justify-center text-rose-300 shrink-0 mt-0.5">
-                    <Bot className="w-3 h-3" />
+                  <div className="w-5 h-5 rounded-md bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0 mt-0.5">
+                    <Coins className="w-3 h-3" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-white">Defeat All {botClassName}</span>
-                      <span className="font-mono-num font-bold text-rose-300 shrink-0">
-                        {levelDef.botCount} {levelDef.botCount === 1 ? 'Bot' : 'Bots'}
+                      <span className="font-semibold text-white">Collect All Gold Coins</span>
+                      <span className="font-mono-num font-bold text-amber-300 shrink-0">
+                        {levelDef.totalCoins} Coins
                       </span>
                     </div>
-                    {isArmoredTier && (
-                      <div className="flex items-center gap-1 text-[10px] text-amber-300 mt-0.5">
-                        <ShieldAlert className="w-3 h-3 shrink-0" />
-                        <span>
-                          Heavy armor resists default blaster — grab the 10-shot Railgun!
-                        </span>
+                    {isCoinTutorial && (
+                      <div className="text-[10px] text-amber-200/85 mt-0.5">
+                        Walk over every spinning Gold Coin across both chambers — no enemies in this training vault!
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Task 4: Unlock Trophy Door */}
+                {/* Task: Defeat Bots (Mixed Squad Breakdown) */}
+                {levelDef.botCount > 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2">
+                    <div className="w-5 h-5 rounded-md bg-rose-500/15 border border-rose-400/40 flex items-center justify-center text-rose-300 shrink-0 mt-0.5">
+                      <Bot className="w-3 h-3" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-white">
+                          {levelDef.botCount === 1
+                            ? `Defeat the ${botEntries[0]?.meta.label || 'Sentinel Bot'}`
+                            : isMixedSquad
+                              ? 'Defeat All Mixed Vault Guards'
+                              : `Defeat All ${botEntries[0]?.meta.plural || 'Sentinel Bots'}`}
+                        </span>
+                        <span className="font-mono-num font-bold text-rose-300 shrink-0">
+                          {levelDef.botCount} {levelDef.botCount === 1 ? 'Bot' : 'Bots'}
+                        </span>
+                      </div>
+
+                      {isMixedSquad && (
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {botEntries.map((entry) => (
+                            <span
+                              key={entry.style}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-white/10 bg-slate-950 text-[10px] font-medium text-slate-200"
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: entry.meta.colorHex }}
+                              />
+                              {entry.count} {entry.count === 1 ? entry.meta.label : entry.meta.plural}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {hasArmoredEnemies && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-300 mt-1">
+                          <ShieldAlert className="w-3 h-3 shrink-0" />
+                          <span>
+                            Armored units resist default blaster — grab the 10-shot Heavy Railgun!
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Task: Unlock Trophy Door */}
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-950/25 p-2">
                   <div className="w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-400/45 flex items-center justify-center text-emerald-300 shrink-0">
                     <Trophy className="w-3 h-3" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
                     <span className="font-semibold text-emerald-200">
-                      Enter the Final Trophy Door &amp; Claim the Relic
+                      Reach {levelDef.trophyZoneLabel} &amp; Claim the Relic
                     </span>
                   </div>
                 </div>

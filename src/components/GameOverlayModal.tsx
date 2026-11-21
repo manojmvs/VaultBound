@@ -132,9 +132,11 @@ export const GameOverlayModal: React.FC<GameOverlayModalProps> = ({
                 </div>
               </div>
               <div>
-                <div className="text-[11px] text-slate-400">Bots Destroyed</div>
+                <div className="text-[11px] text-slate-400">
+                  {summary.totalBots === 0 ? 'Training Mode' : 'Bots Destroyed'}
+                </div>
                 <div className="font-mono-num text-base font-bold text-white">
-                  {summary.kills}/{summary.totalBots}
+                  {summary.totalBots === 0 ? 'Coin Tutorial' : `${summary.kills}/${summary.totalBots}`}
                 </div>
               </div>
               <div>

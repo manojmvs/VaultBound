@@ -109,7 +109,13 @@ export const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({
                 <div className="min-w-0">
                   <div className="text-xs font-semibold truncate">{lvl.theme.name}</div>
                   <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                    {lvl.botCount} {lvl.botCount === 1 ? 'Bot' : 'Bots'} · {lvl.totalCoins} Coins
+                    {lvl.tutorialMode === 'coins'
+                      ? `Coin Tutorial · ${lvl.totalCoins} Coins`
+                      : lvl.tutorialMode === 'combat_ammo'
+                        ? `1 Bot · Ammo Tutorial`
+                        : Object.keys(lvl.botMix).length > 1
+                          ? `${lvl.botCount} Mixed Bots · ${lvl.totalCoins} Coins`
+                          : `${lvl.botCount} ${lvl.botCount === 1 ? 'Bot' : 'Bots'} · ${lvl.totalCoins} Coins`}
                   </div>
                 </div>
 

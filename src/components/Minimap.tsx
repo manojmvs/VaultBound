@@ -180,18 +180,32 @@ export const Minimap: React.FC<MinimapProps> = ({ data }) => {
             />
           ))}
 
-        {/* Alive Bots */}
+        {/* Alive Bots (color-coded by enemy class) */}
         {data.enemies
           .filter((e) => e.alive)
-          .map((e, i) => (
-            <circle
-              key={`e_${i}`}
-              cx={e.x * cell}
-              cy={e.z * cell}
-              r={Math.max(1.7, cell * 0.3)}
-              fill="#ef4444"
-            />
-          ))}
+          .map((e, i) => {
+            const fill =
+              e.style === 'dreadnought'
+                ? '#c084fc'
+                : e.style === 'enforcer'
+                  ? '#f97316'
+                  : e.style === 'striker'
+                    ? '#10b981'
+                    : '#ef4444';
+            const radius =
+              e.style === 'dreadnought' || e.style === 'enforcer'
+                ? Math.max(2.1, cell * 0.36)
+                : Math.max(1.7, cell * 0.3);
+            return (
+              <circle
+                key={`e_${i}`}
+                cx={e.x * cell}
+                cy={e.z * cell}
+                r={radius}
+                fill={fill}
+              />
+            );
+          })}
 
         {/* Golden Trophy Navigation Path (when all tasks are complete) */}
         {!data.treasure.collected && data.trophyPath && data.trophyPath.length >= 2 && (

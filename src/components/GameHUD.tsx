@@ -640,8 +640,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           {/* Bullet Packs Bucket Box */}
           <div
             ref={packsCardRef}
-            className={`flex items-center gap-1.5 rounded-xl border bg-slate-950/82 backdrop-blur-md px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-lg transition-transform duration-150 ${
-              pulseKind === 'pack' ? 'scale-110 border-sky-300' : 'border-white/12'
+            className={`flex items-center gap-1.5 rounded-xl border bg-slate-950/82 backdrop-blur-md px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-lg transition-all duration-150 ${
+              pulseKind === 'pack'
+                ? 'scale-110 border-sky-300'
+                : hud.tutorialAccent === 'ammo'
+                  ? 'border-sky-400 shadow-[0_0_16px_rgba(56,189,248,0.45)]'
+                  : 'border-white/12'
             }`}
             title="Bullet Packs in Bucket (Max 5)"
             aria-label={`Bullet Packs ${hud.bulletPacks} of ${hud.maxBulletPacks}`}
@@ -674,19 +678,25 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               pulseKind === 'trophy' ? 'scale-110 border-emerald-400' : 'border-white/12'
             }`}
           >
-            <div
-              className="flex items-center gap-1"
-              title="Bots Defeated"
-              aria-label={`Bots defeated ${hud.kills} of ${hud.totalBots}`}
-            >
-              <Bot className="w-4 h-4 text-rose-400 shrink-0" />
-              <span className="font-mono-num text-xs sm:text-sm font-bold text-slate-200 whitespace-nowrap">
-                {hud.kills}/{hud.totalBots}
-              </span>
-            </div>
+            {hud.totalBots > 0 && (
+              <div
+                className="flex items-center gap-1"
+                title="Bots Defeated"
+                aria-label={`Bots defeated ${hud.kills} of ${hud.totalBots}`}
+              >
+                <Bot className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-mono-num text-xs sm:text-sm font-bold text-slate-200 whitespace-nowrap">
+                  {hud.kills}/{hud.totalBots}
+                </span>
+              </div>
+            )}
 
             {hud.switchesTotal.length > 0 && (
-              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-800">
+              <div
+                className={`flex items-center gap-1 ${
+                  hud.totalBots > 0 ? 'pl-1.5 border-l border-slate-800' : ''
+                }`}
+              >
                 {hud.switchesTotal.map((color) => {
                   const active = hud.switchesActivated.includes(color);
                   return (
@@ -792,8 +802,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </header>
 
-      {/* ALL TASKS COMPLETE POPUP & LIVE TROPHY NAVIGATION COMPASS */}
-      <div className="absolute top-12 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 px-3 pointer-events-none max-w-[68vw]">
+      {/* ALL TASKS COMPLETE POPUP, LIVE TUTORIAL COACH & TROPHY NAVIGATION COMPASS */}
+      <div className="absolute top-12 sm:top-14 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 px-3 pointer-events-none max-w-[74vw]">
         <AnimatePresence>
           {hud.bannerMessage && (
             <motion.div
@@ -815,6 +825,41 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {!hud.bannerMessage && hud.tutorialHint && (
+          <div
+            className={`flex items-center gap-2 rounded-xl border bg-slate-950/88 px-3 py-1.5 shadow-lg ${
+              hud.tutorialAccent === 'ammo'
+                ? 'border-sky-400/70 text-sky-100'
+                : hud.tutorialAccent === 'combat'
+                  ? 'border-rose-400/65 text-rose-100'
+                  : 'border-amber-400/65 text-amber-100'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            <div
+              className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${
+                hud.tutorialAccent === 'ammo'
+                  ? 'bg-sky-500/20 border-sky-400/55 text-sky-300'
+                  : hud.tutorialAccent === 'combat'
+                    ? 'bg-rose-500/20 border-rose-400/55 text-rose-300'
+                    : 'bg-amber-500/20 border-amber-400/55 text-amber-300'
+              }`}
+            >
+              {hud.tutorialAccent === 'ammo' ? (
+                <Package className="w-3.5 h-3.5" />
+              ) : hud.tutorialAccent === 'combat' ? (
+                <Crosshair className="w-3.5 h-3.5" />
+              ) : (
+                <CoinLogo className="w-3.5 h-3.5" />
+              )}
+            </div>
+            <span className="text-[11px] sm:text-xs font-semibold leading-snug">
+              {hud.tutorialHint}
+            </span>
+          </div>
+        )}
 
         {hud.trophyDoorUnlocked && (
           <div
