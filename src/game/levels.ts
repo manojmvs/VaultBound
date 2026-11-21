@@ -703,10 +703,8 @@ function buildAmmoFoundryBlueprint(): BlueprintResult {
   grid[trophy.z][trophy.x] = 'T';
   grid[7][2] = 'a'; // Amber switch in SW Workshop
 
-  // Guaranteed glowing Blue Bullet Packs right in front of the player in the starting wing!
+  // Single glowing Blue Bullet Pack ahead in the starting wing; packs #2-#5 spawn sequentially upon collection
   grid[8][8] = 'E';
-  grid[8][6] = 'E';
-  grid[6][3] = 'E'; // Extra pack right before entering North Arena
 
   // Single Sentinel Bot in North-East Foundry Arena (zero direct LOS from spawn)
   grid[2][9] = '1';

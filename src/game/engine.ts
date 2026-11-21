@@ -140,6 +140,7 @@ const MAX_GUN_BULLETS = 10;
 const MAX_SPECIAL_GUN_BULLETS = 10;
 const MAX_BULLET_PACKS = 5;
 const MAX_HEALTH_PACKS_PER_LEVEL = 5;
+const MAX_BULLET_PACK_SPAWNS_PER_LEVEL = 5;
 const BOT_REGEN_SECONDS = 2.0;
 const BOT_BURST_COUNT = 5;
 const BOT_BURST_INTERVAL = 0.16;
@@ -212,6 +213,7 @@ export class VaultGameEngine {
   private weaponSwitchAnim = 0;
   private bulletPacks = 1;
   private packsCollectedThisLevel = 0;
+  private packsSpawnedThisLevel = 0;
   private medkitsSpawnedThisLevel = 0;
   private reloadTimer = 0;
   private reloading = false;
@@ -525,6 +527,7 @@ export class VaultGameEngine {
     this.heavyWeaponRig.group.visible = false;
     this.bulletPacks = def.startingBulletPacks ?? 1;
     this.packsCollectedThisLevel = 0;
+    this.packsSpawnedThisLevel = 0;
     this.medkitsSpawnedThisLevel = 0;
     this.reloadTimer = 0;
     this.reloading = false;
@@ -748,6 +751,7 @@ export class VaultGameEngine {
           const kind = ch === '+' ? 'medkit' : ch === 'E' ? 'pack' : 'coin';
           if (kind === 'coin') this.totalCoins++;
           if (kind === 'medkit') this.medkitsSpawnedThisLevel++;
+          if (kind === 'pack') this.packsSpawnedThisLevel++;
           const mesh = createPickupModel(kind, this.contactShadowTex);
           mesh.position.set(wx, 0, wz);
           this.levelGroup.add(mesh);
@@ -803,30 +807,31 @@ export class VaultGameEngine {
       this.levelGroup.add(lampInst);
     }
 
-    // Randomly spawn Bullet Packs, Health Kits, and Heavy Railguns (skipped on Level 1 Coin Tutorial)
+    // Spawn ONLY the first Health Pack & first Bullet Pack (at enemy locations);
+    // packs #2-#5 spawn one-by-one at random locations strictly when the player collects the previous pack.
     if (def.tutorialMode !== 'coins') {
-      const existingPacks = this.pickups.filter((p) => p.kind === 'pack').length;
-      const packsToSpawn = Math.max(0, Math.max(3, def.packCount) - existingPacks);
-      const frontPacks = Math.ceil(packsToSpawn * 0.55);
-      for (let i = 0; i < frontPacks; i++) {
-        this.spawnRandomFloorPickup('pack', true, 1.8);
-      }
-      for (let i = frontPacks; i < packsToSpawn; i++) {
-        this.spawnRandomFloorPickup('pack', false, 2.2);
-      }
-      const medkitsToSpawn = Math.max(
-        0,
-        MAX_HEALTH_PACKS_PER_LEVEL - this.medkitsSpawnedThisLevel,
-      );
-      for (let i = 0; i < medkitsToSpawn; i++) {
-        const preferUnlocked = i < 2;
-        const spawned =
-          this.spawnRandomFloorPickup('medkit', preferUnlocked, 2.2) ||
-          (preferUnlocked && this.spawnRandomFloorPickup('medkit', false, 2.2));
-        if (spawned) {
-          this.medkitsSpawnedThisLevel++;
+      let firstMedkitBotId: string | undefined;
+      if (this.medkitsSpawnedThisLevel === 0) {
+        const medkitBot = this.pickInitialPickupEnemy();
+        if (medkitBot) {
+          this.spawnPickupAtPosition('medkit', medkitBot.x, medkitBot.z);
+          this.medkitsSpawnedThisLevel = 1;
+          firstMedkitBotId = medkitBot.id;
+        } else if (this.spawnNextSequentialPickup('medkit')) {
+          this.medkitsSpawnedThisLevel = 1;
         }
       }
+
+      if (this.packsSpawnedThisLevel === 0) {
+        const packBot = this.pickInitialPickupEnemy(firstMedkitBotId);
+        if (packBot && packBot.id !== firstMedkitBotId) {
+          this.spawnPickupAtPosition('pack', packBot.x, packBot.z);
+          this.packsSpawnedThisLevel = 1;
+        } else if (this.spawnNextSequentialPickup('pack')) {
+          this.packsSpawnedThisLevel = 1;
+        }
+      }
+
       for (let i = 0; i < def.gunPickupCount; i++) {
         this.spawnRandomFloorPickup('gun', i < 2, i === 0 ? 1.6 : 2.3);
       }
@@ -918,6 +923,10 @@ export class VaultGameEngine {
     const chosen = pool[Math.floor(Math.random() * pool.length)];
     const wx = (chosen.gx + 0.5) * TILE_SIZE;
     const wz = (chosen.gz + 0.5) * TILE_SIZE;
+    return this.spawnPickupAtPosition(kind, wx, wz);
+  }
+
+  private spawnPickupAtPosition(kind: 'pack' | 'medkit' | 'gun', wx: number, wz: number): boolean {
     const mesh = createPickupModel(kind, this.contactShadowTex);
     mesh.position.set(wx, 0, wz);
     this.levelGroup.add(mesh);
@@ -932,6 +941,75 @@ export class VaultGameEngine {
       haloMesh: mesh.getObjectByName('coinHalo') || null,
     });
     return true;
+  }
+
+  private pickInitialPickupEnemy(excludeBotId?: string): BotEntity | null {
+    const aliveBots = this.bots.filter((b) => b.alive);
+    if (aliveBots.length === 0) return null;
+
+    const candidates = excludeBotId
+      ? aliveBots.filter((b) => b.id !== excludeBotId)
+      : aliveBots;
+    const pool = candidates.length > 0 ? candidates : aliveBots;
+
+    // Determine currently unlocked reachable cells from player spawn so we prefer an accessible enemy first
+    const startGx = THREE.MathUtils.clamp(
+      Math.floor(this.playerX / TILE_SIZE),
+      1,
+      Math.max(1, this.gridCols - 2),
+    );
+    const startGz = THREE.MathUtils.clamp(
+      Math.floor(this.playerZ / TILE_SIZE),
+      1,
+      Math.max(1, this.gridRows - 2),
+    );
+    const reachable = new Set<string>([`${startGx},${startGz}`]);
+    const queue: Array<{ gx: number; gz: number }> = [{ gx: startGx, gz: startGz }];
+    const dirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      for (const [dx, dz] of dirs) {
+        const nx = cur.gx + dx;
+        const nz = cur.gz + dz;
+        if (nx < 0 || nz < 0 || nx >= this.gridCols || nz >= this.gridRows) continue;
+        const key = `${nx},${nz}`;
+        if (reachable.has(key)) continue;
+        const ch = this.level.grid[nz]?.[nx] || '#';
+        if (ch === '#' || ch === 'C' || ch === 'F') continue;
+        const door = this.doorGrid[nz * this.gridCols + nx];
+        if (door && !door.state.unlocked) continue;
+        reachable.add(key);
+        queue.push({ gx: nx, gz: nz });
+      }
+    }
+
+    const reachableBots = pool.filter((b) => {
+      const bgx = Math.floor(b.x / TILE_SIZE);
+      const bgz = Math.floor(b.z / TILE_SIZE);
+      return reachable.has(`${bgx},${bgz}`);
+    });
+
+    const preferred = reachableBots.length > 0 ? reachableBots : pool;
+    preferred.sort(
+      (a, b) =>
+        Math.hypot(a.x - this.playerX, a.z - this.playerZ) -
+        Math.hypot(b.x - this.playerX, b.z - this.playerZ),
+    );
+    return preferred[0];
+  }
+
+  private spawnNextSequentialPickup(kind: 'pack' | 'medkit'): boolean {
+    return (
+      this.spawnRandomFloorPickup(kind, true, 2.6) ||
+      this.spawnRandomFloorPickup(kind, true, 1.2) ||
+      this.spawnRandomFloorPickup(kind, false, 2.2) ||
+      this.spawnRandomFloorPickup(kind, false, 0.8)
+    );
   }
 
   private showBanner(
@@ -2059,6 +2137,14 @@ export class VaultGameEngine {
             startYPercent,
             points: healed,
           });
+          if (
+            this.level.tutorialMode !== 'coins' &&
+            this.medkitsSpawnedThisLevel < MAX_HEALTH_PACKS_PER_LEVEL
+          ) {
+            if (this.spawnNextSequentialPickup('medkit')) {
+              this.medkitsSpawnedThisLevel++;
+            }
+          }
           this.hudSyncTimer = 0;
           this.emitHud();
         } else if (pk.kind === 'gun') {
@@ -2108,6 +2194,14 @@ export class VaultGameEngine {
               startYPercent,
               points: 0,
             });
+            if (
+              this.level.tutorialMode !== 'coins' &&
+              this.packsSpawnedThisLevel < MAX_BULLET_PACK_SPAWNS_PER_LEVEL
+            ) {
+              if (this.spawnNextSequentialPickup('pack')) {
+                this.packsSpawnedThisLevel++;
+              }
+            }
             this.hudSyncTimer = 0;
             this.emitHud();
           } else if (this.bulletPacks < MAX_BULLET_PACKS) {
@@ -2131,6 +2225,14 @@ export class VaultGameEngine {
               startYPercent,
               points: 0,
             });
+            if (
+              this.level.tutorialMode !== 'coins' &&
+              this.packsSpawnedThisLevel < MAX_BULLET_PACK_SPAWNS_PER_LEVEL
+            ) {
+              if (this.spawnNextSequentialPickup('pack')) {
+                this.packsSpawnedThisLevel++;
+              }
+            }
             this.hudSyncTimer = 0;
             this.emitHud();
           }
@@ -2809,32 +2911,16 @@ export class VaultGameEngine {
         this.updateParticles(simDt);
         this.syncCamera(dt);
 
-        // Periodically spawn random Bullet Packs, Medkits & Heavy Guns on reachable floor tiles
-        if (this.level.tutorialMode !== 'coins') {
+        // Periodically replenish Heavy Railguns on reachable floor tiles (Health & Bullet packs spawn strictly one-by-one on collection)
+        if (this.level.tutorialMode !== 'coins' && this.level.gunPickupCount > 0) {
           this.floorSpawnTimer += simDt;
           if (this.floorSpawnTimer >= 8.5) {
             this.floorSpawnTimer = 0;
-            let activePacks = 0;
-            let activeMedkits = 0;
             let activeGuns = 0;
             for (const p of this.pickups) {
-              if (p.collected) continue;
-              if (p.kind === 'pack') activePacks++;
-              else if (p.kind === 'medkit') activeMedkits++;
-              else if (p.kind === 'gun') activeGuns++;
+              if (!p.collected && p.kind === 'gun') activeGuns++;
             }
-            if (activePacks < 3) {
-              this.spawnRandomFloorPickup('pack', true, 2.8);
-            }
-            if (
-              this.medkitsSpawnedThisLevel < MAX_HEALTH_PACKS_PER_LEVEL &&
-              activeMedkits < MAX_HEALTH_PACKS_PER_LEVEL
-            ) {
-              if (this.spawnRandomFloorPickup('medkit', true, 2.8)) {
-                this.medkitsSpawnedThisLevel++;
-              }
-            }
-            if (this.level.gunPickupCount > 0 && activeGuns < 2 && this.kills < this.bots.length) {
+            if (activeGuns < 2 && this.kills < this.bots.length) {
               this.spawnRandomFloorPickup('gun', true, 2.8);
             }
           }
