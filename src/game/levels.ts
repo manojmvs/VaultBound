@@ -1356,17 +1356,17 @@ function generateUniqueLevel(levelId: number): LevelDefinition {
   const packCount =
     levelId === 1 ? 0 : levelId === 2 ? 5 : Math.max(4, Math.ceil(botCount * 1.45));
 
-  // Special Heavy Railgun unlocks when new enemy classes debut (Lv 4+ Strikers, Lv 8+ Enforcers, Lv 16+ Dreadnoughts)
-  const gunPickupCount =
-    levelId <= 3
-      ? 0
-      : levelId <= 5
-        ? 1
-        : levelId <= 11
-          ? 2
-          : levelId <= 23
-            ? 3
-            : 4;
+  // Special Heavy Railgun is ONLY available on difficult enemy levels containing armored Enforcers or Heavy Dreadnoughts (Levels 8-30)
+  const hasDifficultEnemies = botRoster.some(
+    (style) => style === 'enforcer' || style === 'dreadnought',
+  );
+  const gunPickupCount = !hasDifficultEnemies
+    ? 0
+    : levelId <= 11
+      ? 2
+      : levelId <= 23
+        ? 3
+        : 4;
 
   const useCyan = levelId >= 3;
   const useViolet = levelId >= 10;
